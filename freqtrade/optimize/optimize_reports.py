@@ -9,9 +9,8 @@ from pandas import DataFrame
 from tabulate import tabulate
 
 from freqtrade.constants import DATETIME_PRINT_FORMAT, LAST_BT_RESULT_FN
-from freqtrade.data.btanalysis import (calculate_csum, calculate_market_change,
-                                       calculate_max_drawdown)
-from freqtrade.misc import decimals_per_coin, file_dump_json, round_coin_value
+from freqtrade.data.btanalysis import calculate_market_change, calculate_max_drawdown, calculate_csum
+from freqtrade.misc import file_dump_json, round_coin_value, decimals_per_coin
 
 
 logger = logging.getLogger(__name__)
@@ -43,35 +42,33 @@ def _get_line_floatfmt(stake_currency: str) -> List[str]:
     """
     Generate floatformat (goes in line with _generate_result_line())
     """
-    return ['s', 'd', '.2f', '.2f', f'.{decimals_per_coin(stake_currency)}f',
-            '.2f', 'd', 'd', 'd', 'd']
+    return ['s', 'd', '.2f', '.2f', f'.{decimals_per_coin(stake_currency)}f', '.2f', 'd', 'd', 'd', 'd']
 
 
 def _get_line_header(first_column: str, stake_currency: str) -> List[str]:
     """
     Generate header lines (goes in line with _generate_result_line())
     """
-    return [first_column, 'Buys', 'Avg Profit %', 'Cum Profit %',
+    return [first_column, 'Buys', 'Avg Profit %',
             f'Tot Profit {stake_currency}', 'Tot Profit %', 'Avg Duration',
             'Wins', 'Draws', 'Losses']
 
 
-def _generate_result_line(result: DataFrame, starting_balance: int, first_column: str) -> Dict:
+def _generate_result_line(result: DataFrame, starting_balance: float, first_column: str) -> Dict:
     """
     Generate one result dict, with "first_column" as key.
     """
     profit_sum = result['profit_ratio'].sum()
-    # (end-capital - starting capital) / starting capital
     profit_total = result['profit_abs'].sum() / starting_balance
 
     return {
         'key': first_column,
         'trades': len(result),
         'profit_mean': result['profit_ratio'].mean() if len(result) > 0 else 0.0,
-        'profit_mean_pct': result['profit_ratio'].mean() * 100.0 if len(result) > 0 else 0.0,
+        'profit_mean_pct': result['profit_ratio'].mean() * 100.0 if len(result) > 0 else 0.0, # Average Profit %
         'profit_sum': profit_sum,
-        'profit_sum_pct': round(profit_sum * 100.0, 2),
-        'profit_total_abs': result['profit_abs'].sum(),
+        'profit_sum_pct': round(profit_sum * 100.0, 2), # Cum Profit % -> Profit % Per Stake
+        'profit_total_abs': result['profit_abs'].sum(), # Total Profit [stake_currency]
         'profit_total': profit_total,
         'profit_total_pct': round(profit_total * 100.0, 2),
         'duration_avg': str(timedelta(
@@ -89,7 +86,7 @@ def _generate_result_line(result: DataFrame, starting_balance: int, first_column
     }
 
 
-def generate_pair_metrics(data: Dict[str, Dict], stake_currency: str, starting_balance: int,
+def generate_pair_metrics(data: Dict[str, Dict], stake_currency: str, starting_balance: float,
                           results: DataFrame, skip_nan: bool = False) -> List[Dict]:
     """
     Generates and returns a list  for the given backtest data and the results dataframe
@@ -133,7 +130,7 @@ def generate_sell_reason_stats(max_open_trades: int, results: DataFrame) -> List
 
         tabular_data.append(
             {
-                'sell_reason': reason,
+                'sell_reason': reason.value,
                 'trades': count,
                 'wins': len(result[result['profit_abs'] > 0]),
                 'draws': len(result[result['profit_abs'] == 0]),
@@ -160,7 +157,7 @@ def generate_strategy_metrics(all_results: Dict) -> List[Dict]:
     tabular_data = []
     for strategy, results in all_results.items():
         tabular_data.append(_generate_result_line(
-            results['results'], results['config']['dry_run_wallet'], strategy)
+            results['results'], results['config']['max_open_trades'], strategy)
             )
     return tabular_data
 
@@ -267,6 +264,12 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
         results['open_timestamp'] = results['open_date'].astype(int64) // 1e6
         results['close_timestamp'] = results['close_date'].astype(int64) // 1e6
 
+        max_date_real = Arrow.fromtimestamp(max(results['close_timestamp']))
+        ended_early = False #
+        if (max_date_real < max_date):
+            max_date = max_date_real
+            ended_early = True
+            
         backtest_days = (max_date - min_date).days
         strat_stats = {
             'trades': results.to_dict(orient='records'),
@@ -278,7 +281,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'left_open_trades': left_open_results,
             'total_trades': len(results),
             'total_volume': float(results['stake_amount'].sum()),
-            'avg_stake_amount': results['stake_amount'].mean() if len(results) > 0 else 0,
+            'avg_stake_amount': results['stake_amount'].mean(),
             'profit_mean': results['profit_ratio'].mean() if len(results) > 0 else 0,
             'profit_total': results['profit_abs'].sum() / starting_balance,
             'profit_total_abs': results['profit_abs'].sum(),
@@ -286,6 +289,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'backtest_start_ts': min_date.int_timestamp * 1000,
             'backtest_end': max_date.datetime,
             'backtest_end_ts': max_date.int_timestamp * 1000,
+            'early_end': '* ' if ended_early else '',
             'backtest_days': backtest_days,
 
             'backtest_run_start_ts': content['backtest_start_time'],
@@ -299,7 +303,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'stake_currency_decimals': decimals_per_coin(config['stake_currency']),
             'starting_balance': starting_balance,
             'dry_run_wallet': starting_balance,
-            'final_balance': content['final_balance'],
+            'final_balance': starting_balance + results['profit_abs'].sum(),
             'max_open_trades': max_open_trades,
             'max_open_trades_setting': (config['max_open_trades']
                                         if config['max_open_trades'] != float('inf') else -1),
@@ -382,7 +386,7 @@ def text_table_bt_results(pair_results: List[Dict[str, Any]], stake_currency: st
     headers = _get_line_header('Pair', stake_currency)
     floatfmt = _get_line_floatfmt(stake_currency)
     output = [[
-        t['key'], t['trades'], t['profit_mean_pct'], t['profit_sum_pct'], t['profit_total_abs'],
+        t['key'], t['trades'], t['profit_mean_pct'], t['profit_total_abs'],
         t['profit_total_pct'], t['duration_avg'], t['wins'], t['draws'], t['losses']
     ] for t in pair_results]
     # Ignore type as floatfmt does allow tuples but mypy does not know that
@@ -404,16 +408,13 @@ def text_table_sell_reason(sell_reason_stats: List[Dict[str, Any]], stake_curren
         'Draws',
         'Losses',
         'Avg Profit %',
-        'Cum Profit %',
         f'Tot Profit {stake_currency}',
         'Tot Profit %',
     ]
 
     output = [[
         t['sell_reason'], t['trades'], t['wins'], t['draws'], t['losses'],
-        t['profit_mean_pct'], t['profit_sum_pct'],
-        round_coin_value(t['profit_total_abs'], stake_currency, False),
-        t['profit_total_pct'],
+        t['profit_mean_pct'], t['profit_total_abs'], t['profit_total_pct'],
     ] for t in sell_reason_stats]
     return tabulate(output, headers=headers, tablefmt="orgtbl", stralign="right")
 
@@ -430,7 +431,7 @@ def text_table_strategy(strategy_results, stake_currency: str) -> str:
     headers = _get_line_header('Strategy', stake_currency)
 
     output = [[
-        t['key'], t['trades'], t['profit_mean_pct'], t['profit_sum_pct'], t['profit_total_abs'],
+        t['key'], t['trades'], t['profit_mean_pct'], t['profit_total_abs'],
         t['profit_total_pct'], t['duration_avg'], t['wins'], t['draws'], t['losses']
     ] for t in strategy_results]
     # Ignore type as floatfmt does allow tuples but mypy does not know that
@@ -443,8 +444,10 @@ def text_table_add_metrics(strat_results: Dict) -> str:
         best_trade = max(strat_results['trades'], key=lambda x: x['profit_ratio'])
         worst_trade = min(strat_results['trades'], key=lambda x: x['profit_ratio'])
         metrics = [
+            ('Strategy', strat_results['strategy_name']),
+            ('', ''),  # Empty line to improve readability
             ('Backtesting from', strat_results['backtest_start'].strftime(DATETIME_PRINT_FORMAT)),
-            ('Backtesting to', strat_results['backtest_end'].strftime(DATETIME_PRINT_FORMAT)),
+            (f"{strat_results['early_end']}Backtesting to", strat_results['backtest_end'].strftime(DATETIME_PRINT_FORMAT)),
             ('Max open trades', strat_results['max_open_trades']),
             ('', ''),  # Empty line to improve readability
             ('Total trades', strat_results['total_trades']),
@@ -497,15 +500,7 @@ def text_table_add_metrics(strat_results: Dict) -> str:
 
         return tabulate(metrics, headers=["Metric", "Value"], tablefmt="orgtbl")
     else:
-        start_balance = round_coin_value(strat_results['starting_balance'],
-                                         strat_results['stake_currency'])
-        stake_amount = round_coin_value(strat_results['stake_amount'],
-                                        strat_results['stake_currency'])
-        message = ("No trades made. "
-                   f"Your starting balance was {start_balance}, "
-                   f"and your stake was {stake_amount}."
-                   )
-        return message
+        return ''
 
 
 def show_backtest_results(config: Dict, backtest_stats: Dict):
@@ -523,21 +518,27 @@ def show_backtest_results(config: Dict, backtest_stats: Dict):
         table = text_table_sell_reason(sell_reason_stats=results['sell_reason_summary'],
                                        stake_currency=stake_currency)
         if isinstance(table, str) and len(table) > 0:
+            print('')
             print(' SELL REASON STATS '.center(len(table.splitlines()[0]), '='))
         print(table)
 
         table = text_table_bt_results(results['left_open_trades'], stake_currency=stake_currency)
         if isinstance(table, str) and len(table) > 0:
+            print('')
             print(' LEFT OPEN TRADES REPORT '.center(len(table.splitlines()[0]), '='))
         print(table)
 
         table = text_table_add_metrics(results)
         if isinstance(table, str) and len(table) > 0:
+            print('')
             print(' SUMMARY METRICS '.center(len(table.splitlines()[0]), '='))
         print(table)
 
         if isinstance(table, str) and len(table) > 0:
             print('=' * len(table.splitlines()[0]))
+        
+        if(results['early_end']=='* '):
+            print('* - Backtest ended at an earlier time.')
         print()
 
     if len(backtest_stats['strategy']) > 1:
