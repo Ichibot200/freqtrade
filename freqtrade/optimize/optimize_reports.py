@@ -569,9 +569,8 @@ def show_backtest_results(config: Dict, backtest_stats: Dict):
 
     if len(backtest_stats['strategy']) > 1:
         # Print Strategy summary table
-
         table = text_table_strategy(backtest_stats['strategy_comparison'], stake_currency)
-		print(strat_results['backtest_start'].strftime(DATETIME_PRINT_FORMAT) + ' - ' + strat_results['backtest_end'].strftime(DATETIME_PRINT_FORMAT))
+        print(results['backtest_start'].strftime(DATETIME_PRINT_FORMAT) + ' - ' + results['backtest_end'].strftime(DATETIME_PRINT_FORMAT))
         print(f' STRATEGY SUMMARY ({results["timeframe"]} timeframe) '.center(len(table.splitlines()[0]), '='))
         print(table)
         print('=' * len(table.splitlines()[0]))
