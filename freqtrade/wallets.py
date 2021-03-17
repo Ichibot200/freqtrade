@@ -10,7 +10,8 @@ import arrow
 from freqtrade.constants import UNLIMITED_STAKE_AMOUNT
 from freqtrade.exceptions import DependencyException
 from freqtrade.exchange import Exchange
-from freqtrade.persistence import Trade
+from freqtrade.persistence import LocalTrade, Trade
+from freqtrade.state import RunMode
 
 
 logger = logging.getLogger(__name__)
@@ -65,9 +66,15 @@ class Wallets:
         """
         # Recreate _wallets to reset closed trade balances
         _wallets = {}
-        closed_trades = Trade.get_trades(Trade.is_open.is_(False)).all()
-        open_trades = Trade.get_trades(Trade.is_open.is_(True)).all()
-        tot_profit = sum([trade.calc_profit() for trade in closed_trades])
+        open_trades = Trade.get_trades_proxy(is_open=True)
+        # If not backtesting...
+        # TODO: potentially remove the ._log workaround to determine backtest mode.
+        if self._log:
+            closed_trades = Trade.get_trades_proxy(is_open=False)
+            tot_profit = sum(
+                [trade.close_profit_abs for trade in closed_trades if trade.close_profit_abs])
+        else:
+            tot_profit = LocalTrade.total_profit
         tot_in_trades = sum([trade.stake_amount for trade in open_trades])
 
         current_stake = self.start_cap + tot_profit - tot_in_trades
@@ -112,10 +119,10 @@ class Wallets:
         :param require_update: Allow skipping an update if balances were recently refreshed
         """
         if (require_update or (self._last_wallet_refresh + 3600 < arrow.utcnow().int_timestamp)):
-            if self._config['dry_run']:
-                self._update_dry()
-            else:
+            if (not self._config['dry_run'] or self._config.get('runmode') == RunMode.LIVE):
                 self._update_live()
+            else:
+                self._update_dry()
             if self._log:
                 logger.info('Wallets synced.')
             self._last_wallet_refresh = arrow.utcnow().int_timestamp
@@ -156,6 +163,7 @@ class Wallets:
         Check if stake amount can be fulfilled with the available balance
         for the stake currency
         :return: float: Stake amount
+        :raise: DependencyException if balance is lower than stake-amount
         """
         available_amount = self._get_available_stake_amount()
 

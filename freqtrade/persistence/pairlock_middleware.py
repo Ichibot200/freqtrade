@@ -123,7 +123,7 @@ class PairLocks():
             now = datetime.now(timezone.utc)
 
         return len(PairLocks.get_pair_locks(pair, now)) > 0 or PairLocks.is_global_lock(now)
-        
+
     @staticmethod
     def get_all_locks() -> List[PairLock]:
 

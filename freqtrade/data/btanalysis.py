@@ -10,7 +10,7 @@ import pandas as pd
 
 from freqtrade.constants import LAST_BT_RESULT_FN
 from freqtrade.misc import json_load
-from freqtrade.persistence import Trade, init_db
+from freqtrade.persistence import LocalTrade, Trade, init_db
 
 
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ def evaluate_result_multi(results: pd.DataFrame, timeframe: str,
     return df_final[df_final['open_trades'] > max_open_trades]
 
 
-def trade_list_to_dataframe(trades: List[Trade]) -> pd.DataFrame:
+def trade_list_to_dataframe(trades: List[LocalTrade]) -> pd.DataFrame:
     """
     Convert list of Trade objects to pandas Dataframe
     :param trades: List of trade objects
@@ -382,10 +382,26 @@ def calculate_max_drawdown(trades: pd.DataFrame, *, date_col: str = 'close_date'
         raise ValueError("No losing trade, therefore no drawdown.")
     high_date = profit_results.loc[max_drawdown_df.iloc[:idxmin]['high_value'].idxmax(), date_col]
     low_date = profit_results.loc[idxmin, date_col]
+    :raise: ValueError if trade-dataframe was found empty.
+    """
+    if len(trades) == 0:
+        raise ValueError("Trade dataframe empty.")
+    profit_results = trades.sort_values(date_col).reset_index(drop=True)
+    max_drawdown_df = pd.DataFrame()
+    max_drawdown_df['cumulative'] = profit_results[value_col].cumsum()
+    max_drawdown_df['high_value'] = max_drawdown_df['cumulative'].cummax()
+    max_drawdown_df['drawdown'] = max_drawdown_df['cumulative'] - max_drawdown_df['high_value']
+
+    idxmin = max_drawdown_df['drawdown'].idxmin()
+    if idxmin == 0:
+        raise ValueError("No losing trade, therefore no drawdown.")
+    high_date = profit_results.loc[max_drawdown_df.iloc[:idxmin]['high_value'].idxmax(), date_col]
+    low_date = profit_results.loc[idxmin, date_col]
     high_val = max_drawdown_df.loc[max_drawdown_df.iloc[:idxmin]
                                    ['high_value'].idxmax(), 'cumulative']
     low_val = max_drawdown_df.loc[idxmin, 'cumulative']
     return abs(min(max_drawdown_df['drawdown'])), high_date, low_date, high_val, low_val
+
 
 def calculate_csum(trades: pd.DataFrame, starting_balance: float = 0) -> Tuple[float, float]:
     """

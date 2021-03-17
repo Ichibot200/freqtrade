@@ -18,19 +18,11 @@ from freqtrade.exchange.exchange import (market_is_active, timeframe_to_minutes,
                                          timeframe_to_next_date, timeframe_to_prev_date,
                                          timeframe_to_seconds)
 from freqtrade.resolvers.exchange_resolver import ExchangeResolver
-from tests.conftest import get_patched_exchange, log_has, log_has_re
+from tests.conftest import get_mock_coro, get_patched_exchange, log_has, log_has_re
 
 
 # Make sure to always keep one exchange here which is NOT subclassed!!
 EXCHANGES = ['bittrex', 'binance', 'kraken', 'ftx']
-
-
-# Source: https://stackoverflow.com/questions/29881236/how-to-mock-asyncio-coroutines
-def get_mock_coro(return_value):
-    async def mock_coro(*args, **kwargs):
-        return return_value
-
-    return Mock(wraps=mock_coro)
 
 
 def ccxt_exceptionhandlers(mocker, default_conf, api_mock, exchange_name,
@@ -1417,7 +1409,7 @@ def test_get_historic_ohlcv(default_conf, mocker, caplog, exchange_name):
     exchange._async_get_candle_history = Mock(wraps=mock_candle_hist)
     # one_call calculation * 1.8 should do 2 calls
 
-    since = 5 * 60 * exchange._ft_has['ohlcv_candle_limit'] * 1.8
+    since = 5 * 60 * exchange.ohlcv_candle_limit('5m') * 1.8
     ret = exchange.get_historic_ohlcv(pair, "5m", int((
         arrow.utcnow().int_timestamp - since) * 1000))
 
@@ -1473,7 +1465,7 @@ def test_get_historic_ohlcv_as_df(default_conf, mocker, exchange_name):
     exchange._async_get_candle_history = Mock(wraps=mock_candle_hist)
     # one_call calculation * 1.8 should do 2 calls
 
-    since = 5 * 60 * exchange._ft_has['ohlcv_candle_limit'] * 1.8
+    since = 5 * 60 * exchange.ohlcv_candle_limit('5m') * 1.8
     ret = exchange.get_historic_ohlcv_as_df(pair, "5m", int((
         arrow.utcnow().int_timestamp - since) * 1000))
 
@@ -2276,11 +2268,19 @@ def test_get_fee(default_conf, mocker, exchange_name):
         'cost': 0.05
     })
     exchange = get_patched_exchange(mocker, default_conf, api_mock, id=exchange_name)
+    exchange._config.pop('fee', None)
 
     assert exchange.get_fee('ETH/BTC') == 0.025
+    assert api_mock.calculate_fee.call_count == 1
 
     ccxt_exceptionhandlers(mocker, default_conf, api_mock, exchange_name,
                            'get_fee', 'calculate_fee', symbol="ETH/BTC")
+
+    api_mock.calculate_fee.reset_mock()
+    exchange._config['fee'] = 0.001
+
+    assert exchange.get_fee('ETH/BTC') == 0.001
+    assert api_mock.calculate_fee.call_count == 0
 
 
 def test_stoploss_order_unsupported_exchange(default_conf, mocker):
@@ -2416,6 +2416,19 @@ def test_get_markets_error(default_conf, mocker):
     mocker.patch('freqtrade.exchange.Exchange.markets', PropertyMock(return_value=None))
     with pytest.raises(OperationalException, match="Markets were not loaded."):
         ex.get_markets('LTC', 'USDT', True, False)
+
+
+@pytest.mark.parametrize("exchange_name", EXCHANGES)
+def test_ohlcv_candle_limit(default_conf, mocker, exchange_name):
+    exchange = get_patched_exchange(mocker, default_conf, id=exchange_name)
+    timeframes = ('1m', '5m', '1h')
+    expected = exchange._ft_has['ohlcv_candle_limit']
+    for timeframe in timeframes:
+        if 'ohlcv_candle_limit_per_timeframe' in exchange._ft_has:
+            expected = exchange._ft_has['ohlcv_candle_limit_per_timeframe'][timeframe]
+            # This should only run for bittrex
+            assert exchange_name == 'bittrex'
+        assert exchange.ohlcv_candle_limit(timeframe) == expected
 
 
 def test_timeframe_to_minutes():

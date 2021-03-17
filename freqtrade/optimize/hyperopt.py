@@ -73,12 +73,15 @@ class Hyperopt:
         self.backtesting = Backtesting(self.config)
 
         self.custom_hyperopt = HyperOptResolver.load_hyperopt(self.config)
+        self.custom_hyperopt.__class__.strategy = self.backtesting.strategy
 
         self.custom_hyperoptloss = HyperOptLossResolver.load_hyperoptloss(self.config)
         self.calculate_loss = self.custom_hyperoptloss.hyperopt_loss_function
         time_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        strategy = str(self.config['strategy'])
         self.results_file = (self.config['user_data_dir'] /
-                             'hyperopt_results' / f'hyperopt_results_{time_now}.pickle')
+                             'hyperopt_results' /
+                             f'strategy_{strategy}_hyperopt_results_{time_now}.pickle')
         self.data_pickle_file = (self.config['user_data_dir'] /
                                  'hyperopt_results' / 'hyperopt_tickerdata.pkl')
         self.total_epochs = config.get('epochs', 0)
@@ -419,14 +422,16 @@ class Hyperopt:
         trials['Stake currency'] = config['stake_currency']
 
         base_metrics = ['Best', 'current_epoch', 'results_metrics.trade_count',
-                        'results_metrics.avg_profit', 'results_metrics.total_profit',
+                        'results_metrics.avg_profit', 'results_metrics.median_profit',
+                        'results_metrics.total_profit',
                         'Stake currency', 'results_metrics.profit', 'results_metrics.duration',
                         'loss', 'is_initial_point', 'is_best']
         param_metrics = [("params_dict."+param) for param in results[0]['params_dict'].keys()]
         trials = trials[base_metrics + param_metrics]
 
-        base_columns = ['Best', 'Epoch', 'Trades', 'Avg profit', 'Total profit', 'Stake currency',
-                        'Profit', 'Avg duration', 'Objective', 'is_initial_point', 'is_best']
+        base_columns = ['Best', 'Epoch', 'Trades', 'Avg profit', 'Median profit', 'Total profit',
+                        'Stake currency', 'Profit', 'Avg duration', 'Objective',
+                        'is_initial_point', 'is_best']
         param_columns = list(results[0]['params_dict'].keys())
         trials.columns = base_columns + param_columns
 
@@ -537,7 +542,6 @@ class Hyperopt:
 
         backtesting_results = self.backtesting.backtest(
             processed=processed,
-            stake_amount=self.config['stake_amount'],
             start_date=min_date.datetime,
             end_date=max_date.datetime,
             max_open_trades=self.max_open_trades,
@@ -546,10 +550,11 @@ class Hyperopt:
 
         )
         return self._get_results_dict(backtesting_results, min_date, max_date,
-                                      params_dict, params_details)
+                                      params_dict, params_details,
+                                      processed=processed)
 
     def _get_results_dict(self, backtesting_results, min_date, max_date,
-                          params_dict, params_details):
+                          params_dict, params_details, processed: Dict[str, DataFrame]):
         results_metrics = self._calculate_results_metrics(backtesting_results)
         results_explanation = self._format_results_explanation_string(results_metrics)
 
@@ -563,7 +568,8 @@ class Hyperopt:
         loss: float = MAX_LOSS
         if trade_count >= self.config['hyperopt_min_trades']:
             loss = self.calculate_loss(results=backtesting_results, trade_count=trade_count,
-                                       min_date=min_date.datetime, max_date=max_date.datetime)
+                                       min_date=min_date.datetime, max_date=max_date.datetime,
+                                       config=self.config, processed=processed)
         return {
             'loss': loss,
             'params_dict': params_dict,
@@ -659,7 +665,10 @@ class Hyperopt:
         dump(preprocessed, self.data_pickle_file)
 
         # We don't need exchange instance anymore while running hyperopt
-        self.backtesting.exchange = None  # type: ignore
+        self.backtesting.exchange.close()
+        self.backtesting.exchange._api = None  # type: ignore
+        self.backtesting.exchange._api_async = None  # type: ignore
+        # self.backtesting.exchange = None  # type: ignore
         self.backtesting.pairlists = None  # type: ignore
         self.backtesting.strategy.dp = None  # type: ignore
         IStrategy.dp = None  # type: ignore

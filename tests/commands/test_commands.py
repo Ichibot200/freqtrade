@@ -706,7 +706,7 @@ def test_download_data_timerange(mocker, caplog, markets):
     start_download_data(get_args(args))
     assert dl_mock.call_count == 1
     # 20days ago
-    days_ago = arrow.get(arrow.utcnow().shift(days=-20).date()).int_timestamp
+    days_ago = arrow.get(arrow.now().shift(days=-20).date()).int_timestamp
     assert dl_mock.call_args_list[0][1]['timerange'].startts == days_ago
 
     dl_mock.reset_mock()
@@ -1145,7 +1145,7 @@ def test_hyperopt_list(mocker, capsys, caplog, hyperopt_results):
     captured = capsys.readouterr()
     log_has("CSV file created: test_file.csv", caplog)
     f = Path("test_file.csv")
-    assert 'Best,1,2,-1.25%,-0.00125625,,-2.51,"3,930.0 m",0.43662' in f.read_text()
+    assert 'Best,1,2,-1.25%,-1.2222,-0.00125625,,-2.51,"3,930.0 m",0.43662' in f.read_text()
     assert f.is_file()
     f.unlink()
 

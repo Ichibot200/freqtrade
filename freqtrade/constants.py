@@ -45,6 +45,54 @@ USERPATH_NOTEBOOKS = 'notebooks'
 
 TELEGRAM_SETTING_OPTIONS = ['on', 'off', 'silent']
 
+# pragma pylint: disable=too-few-public-methods
+
+"""
+bot constants
+"""
+from typing import List, Tuple
+
+
+DEFAULT_CONFIG = 'config.json'
+DEFAULT_EXCHANGE = 'bittrex'
+PROCESS_THROTTLE_SECS = 5  # sec
+HYPEROPT_EPOCH = 100  # epochs
+RETRY_TIMEOUT = 30  # sec
+DEFAULT_DB_PROD_URL = 'sqlite:///tradesv3.sqlite'
+DEFAULT_DB_DRYRUN_URL = 'sqlite:///tradesv3.dryrun.sqlite'
+UNLIMITED_STAKE_AMOUNT = 'unlimited'
+DEFAULT_AMOUNT_RESERVE_PERCENT = 0.05
+REQUIRED_ORDERTIF = ['buy', 'sell']
+REQUIRED_ORDERTYPES = ['buy', 'sell', 'stoploss', 'stoploss_on_exchange']
+ORDERBOOK_SIDES = ['ask', 'bid']
+ORDERTYPE_POSSIBILITIES = ['limit', 'market']
+ORDERTIF_POSSIBILITIES = ['gtc', 'fok', 'ioc']
+HYPEROPT_LOSS_BUILTIN = ['ShortTradeDurHyperOptLoss', 'OnlyProfitHyperOptLoss',
+                         'SharpeHyperOptLoss', 'SharpeHyperOptLossDaily',
+                         'SortinoHyperOptLoss', 'SortinoHyperOptLossDaily']
+AVAILABLE_PAIRLISTS = ['StaticPairList', 'VolumePairList',
+                       'AgeFilter', 'PerformanceFilter', 'PrecisionFilter',
+                       'PriceFilter', 'RangeStabilityFilter', 'ShuffleFilter',
+                       'SpreadFilter']
+AVAILABLE_PROTECTIONS = ['CooldownPeriod', 'LowProfitPairs', 'MaxDrawdown', 'StoplossGuard']
+AVAILABLE_DATAHANDLERS = ['json', 'jsongz', 'hdf5']
+DRY_RUN_WALLET = 1000
+DATETIME_PRINT_FORMAT = '%Y-%m-%d %H:%M:%S'
+MATH_CLOSE_PREC = 1e-14  # Precision used for float comparisons
+DEFAULT_DATAFRAME_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume']
+# Don't modify sequence of DEFAULT_TRADES_COLUMNS
+# it has wide consequences for stored trades files
+DEFAULT_TRADES_COLUMNS = ['timestamp', 'id', 'type', 'side', 'price', 'amount', 'cost']
+
+LAST_BT_RESULT_FN = '.last_result.json'
+
+USERPATH_HYPEROPTS = 'hyperopts'
+USERPATH_STRATEGIES = 'strategies'
+USERPATH_NOTEBOOKS = 'notebooks'
+
+TELEGRAM_SETTING_OPTIONS = ['on', 'off', 'silent']
+
+
 # Define decimals per coin for outputs
 # Only used for outputs.
 DECIMAL_PER_COIN_FALLBACK = 3  # Should be low to avoid listing all possible FIAT's
@@ -52,6 +100,12 @@ DECIMALS_PER_COIN = {
     'BTC': 8,
     'ETH': 5,
 }
+
+DUST_PER_COIN = {
+    'BTC': 0.0001,
+    'ETH': 0.01
+}
+
 
 # Soure files with destination directories within user-directory
 USER_DATA_FILES = {
@@ -172,6 +226,8 @@ CONF_SCHEMA = {
             'properties': {
                 'buy': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
                 'sell': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
+                'forcesell': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
+                'forcebuy': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
                 'emergencysell': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
                 'stoploss': {'type': 'string', 'enum': ORDERTYPE_POSSIBILITIES},
                 'stoploss_on_exchange': {'type': 'boolean'},
@@ -228,6 +284,7 @@ CONF_SCHEMA = {
                 'enabled': {'type': 'boolean'},
                 'token': {'type': 'string'},
                 'chat_id': {'type': 'string'},
+                'balance_dust_level': {'type': 'number', 'minimum': 0.0},
                 'notification_settings': {
                     'type': 'object',
                     'properties': {
@@ -241,7 +298,7 @@ CONF_SCHEMA = {
                     }
                 }
             },
-            'required': ['enabled', 'token', 'chat_id']
+            'required': ['enabled', 'token', 'chat_id'],
         },
         'webhook': {
             'type': 'object',
@@ -364,6 +421,16 @@ SCHEMA_TRADE_REQUIRED = [
     'stoploss',
     'minimal_roi',
     'internals',
+    'dataformat_ohlcv',
+    'dataformat_trades',
+]
+
+SCHEMA_BACKTEST_REQUIRED = [
+    'exchange',
+    'max_open_trades',
+    'stake_currency',
+    'stake_amount',
+    'dry_run_wallet',
     'dataformat_ohlcv',
     'dataformat_trades',
 ]
