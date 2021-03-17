@@ -26,8 +26,9 @@ class Wallet(NamedTuple):
 
 class Wallets:
 
-    def __init__(self, config: dict, exchange: Exchange) -> None:
+    def __init__(self, config: dict, exchange: Exchange, log: bool = True) -> None:
         self._config = config
+        self._log = log
         self._exchange = exchange
         self._wallets: Dict[str, Wallet] = {}
         self.start_cap = config['dry_run_wallet']
@@ -115,7 +116,8 @@ class Wallets:
                 self._update_dry()
             else:
                 self._update_live()
-            logger.info('Wallets synced.')
+            if self._log:
+                logger.info('Wallets synced.')
             self._last_wallet_refresh = arrow.utcnow().int_timestamp
 
     def get_all_balances(self) -> Dict[str, Any]:

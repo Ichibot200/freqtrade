@@ -81,19 +81,25 @@ class SampleStrategy(IStrategy):
     }
 
     plot_config = {
-        'main_plot': {
-            'tema': {},
-            'sar': {'color': 'white'},
-        },
-        'subplots': {
-            "MACD": {
-                'macd': {'color': 'blue'},
-                'macdsignal': {'color': 'orange'},
+          "main_plot": {
+            "bb_lowerband": {},
+            "bb_upperband": {},
+            "ema200_1h": {
+              "color": "#498cbf",
+              "type": "line"
             },
-            "RSI": {
-                'rsi': {'color': 'red'},
+            "_buy_signal_open": {
+              "color": "#7a8f2d",
+              "type": "line"
             }
-        }
+          },
+          "subplots": {
+            "RSI": {
+              "rsi": {
+                "color": "red"
+              }
+            }
+          }
     }
 
     def informative_pairs(self):

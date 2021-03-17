@@ -16,7 +16,6 @@ from freqtrade.commands import Arguments
 from freqtrade.exceptions import FreqtradeException, OperationalException
 from freqtrade.loggers import setup_logging_pre
 
-
 logger = logging.getLogger('freqtrade')
 
 

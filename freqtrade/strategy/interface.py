@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
+from os import system
 
 import arrow
 from pandas import DataFrame
@@ -20,6 +21,7 @@ from freqtrade.exchange.exchange import timeframe_to_next_date
 from freqtrade.persistence import PairLocks, Trade
 from freqtrade.strategy.strategy_wrapper import strategy_safe_wrapper
 from freqtrade.wallets import Wallets
+from freqtrade.state import RunMode
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +140,10 @@ class IStrategy(ABC):
 
     def __init__(self, config: dict) -> None:
         self.config = config
+        # Rename terminal title for better UX
+        mode = "D" if self.config['runmode']==RunMode.DRY_RUN else "L" if self.config['runmode']==RunMode.LIVE else "BT" if self.config['runmode']==RunMode.BACKTEST else ""
+        if mode:
+            system(f'Title {mode} - {self.get_strategy_name()}')
         # Dict to determine if analysis is necessary
         self._last_candle_seen_per_pair: Dict[str, datetime] = {}
 

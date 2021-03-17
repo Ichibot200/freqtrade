@@ -436,7 +436,7 @@ class RPC:
         except (ExchangeError):
             raise RPCException('Error getting current tickers.')
 
-        self._freqtrade.wallets.update(require_update=False)
+        self._freqtrade.wallets.update(require_update=True)
 
         for coin, balance in self._freqtrade.wallets.get_all_balances().items():
             if not balance.total:

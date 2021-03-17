@@ -231,13 +231,22 @@ def refresh_backtest_ohlcv_data(exchange: Exchange, pairs: List[str], timeframes
     """
     pairs_not_available = []
     data_handler = get_datahandler(datadir, data_format)
+    total_downloads = len(pairs) * len(timeframes)
+    iteration = 0
+    
+    logger.info(f'Total number of downloads: {total_downloads}')
+    
     for pair in pairs:
         if pair not in exchange.markets:
             pairs_not_available.append(pair)
             logger.info(f"Skipping pair {pair}...")
             continue
         for timeframe in timeframes:
-
+            
+            iteration += 1
+            progress_pct = round(iteration/total_downloads * 100, 1)
+            logger.info(f'Download progress: {iteration}/{total_downloads} ({progress_pct} %)')
+            
             if erase:
                 if data_handler.ohlcv_purge(pair, timeframe):
                     logger.info(
