@@ -311,8 +311,8 @@ class Exchange:
             self._markets = self._api.load_markets()
             self._load_async_markets()
             self._last_markets_refresh = arrow.utcnow().int_timestamp
-        except ccxt.BaseError as e:
-            logger.warning('Unable to initialize markets. Reason: %s', e)
+        except ccxt.BaseError:
+            logger.exception('Unable to initialize markets.')
 
     def reload_markets(self) -> None:
         """Reload markets both sync and async if refresh interval has passed """
@@ -531,16 +531,16 @@ class Exchange:
             return None
 
         # reserve some percent defined in config (5% default) + stoploss
-        amount_reserve_percent = 1.0 - self._config.get('amount_reserve_percent',
+        amount_reserve_percent = 1.0 + self._config.get('amount_reserve_percent',
                                                         DEFAULT_AMOUNT_RESERVE_PERCENT)
-        amount_reserve_percent += stoploss
+        amount_reserve_percent += abs(stoploss)
         # it should not be more than 50%
-        amount_reserve_percent = max(amount_reserve_percent, 0.5)
+        amount_reserve_percent = max(min(amount_reserve_percent, 1.5), 1)
 
         # The value returned should satisfy both limits: for amount (base currency) and
         # for cost (quote, stake currency), so max() is used here.
         # See also #2575 at github.
-        return max(min_stake_amounts) / amount_reserve_percent
+        return max(min_stake_amounts) * amount_reserve_percent
 
     def dry_run_order(self, pair: str, ordertype: str, side: str, amount: float,
                       rate: float, params: Dict = {}) -> Dict[str, Any]:
