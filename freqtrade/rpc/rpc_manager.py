@@ -38,6 +38,9 @@ class RPCManager:
 
             self.registered_modules.append(ApiServer(self._rpc, config))
 
+    def get_registered_modules(self):
+        return self.registered_modules
+    
     def cleanup(self) -> None:
         """ Stops all enabled rpc modules """
         logger.info('Cleaning up rpc modules ...')

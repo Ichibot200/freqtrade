@@ -158,16 +158,19 @@ class Telegram(RPCHandler):
         ]
         for handle in handles:
             self._updater.dispatcher.add_handler(handle)
-        self._updater.start_polling(
-            clean=True,
-            bootstrap_retries=-1,
-            timeout=30,
-            read_latency=60,
-        )
-        logger.info(
-            'rpc.telegram is listening for following commands: %s',
-            [h.command for h in handles]
-        )
+        try:
+            self._updater.start_polling(
+                drop_pending_updates=True,
+                bootstrap_retries=-1,
+                timeout=30,
+                read_latency=60,
+            )
+            logger.info(
+                'rpc.telegram is listening for following commands: %s',
+                [h.command for h in handles]
+            )
+        except TelegramError as telegram_err:
+            logger.info('An error occured while initiating rpc.telegram: %s',telegram_err)
 
     def cleanup(self) -> None:
         """

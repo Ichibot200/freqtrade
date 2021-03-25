@@ -152,7 +152,7 @@ class FreqtradeBot(LoggingMixin):
         otherwise a new trade is created.
         :return: True if one or more trades has been created or closed, False otherwise
         """
-
+        logger.debug(self.rpc.get_registered_modules())
         # Check whether markets have to be reloaded and reload them when it's needed
         self.exchange.reload_markets()
 
