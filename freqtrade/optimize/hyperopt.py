@@ -537,7 +537,6 @@ class Hyperopt:
 
         backtesting_results = self.backtesting.backtest(
             processed=processed,
-            stake_amount=self.config['stake_amount'],
             start_date=min_date.datetime,
             end_date=max_date.datetime,
             max_open_trades=self.max_open_trades,
@@ -661,7 +660,10 @@ class Hyperopt:
         dump(preprocessed, self.data_pickle_file)
 
         # We don't need exchange instance anymore while running hyperopt
-        self.backtesting.exchange = None  # type: ignore
+        self.backtesting.exchange.close()
+        self.backtesting.exchange._api = None  # type: ignore
+        self.backtesting.exchange._api_async = None  # type: ignore
+        # self.backtesting.exchange = None  # type: ignore
         self.backtesting.pairlists = None  # type: ignore
         self.backtesting.strategy.dp = None  # type: ignore
         IStrategy.dp = None  # type: ignore
