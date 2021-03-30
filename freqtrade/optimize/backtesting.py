@@ -172,10 +172,8 @@ class Backtesting:
         PairLocks.use_db = False
         PairLocks.timeframe = self.config['timeframe']
         Trade.use_db = False
-        if enable_protections:
-            # Reset persisted data - used for protections only
-            PairLocks.reset_locks()
-            Trade.reset_trades()
+        PairLocks.reset_locks()
+        Trade.reset_trades()
 
     def _get_ohlcv_as_lists(self, processed: Dict[str, DataFrame]) -> Dict[str, Tuple]:
         """
@@ -204,7 +202,7 @@ class Backtesting:
 
             # Convert from Pandas to list for performance reasons
             # (Looping Pandas is slow.)
-            data[pair] = [x for x in df_analyzed.itertuples(index=False, name=None)]
+            data[pair] = df_analyzed.values.tolist()
         return data
 
     def _get_close_rate(self, sell_row: Tuple, trade: Trade, sell: SellCheckTuple,
@@ -252,19 +250,60 @@ class Backtesting:
         sell = self.strategy.should_sell(trade, sell_row[OPEN_IDX], sell_row[DATE_IDX],
                                          sell_row[BUY_IDX], sell_row[SELL_IDX],
                                          low=sell_row[LOW_IDX], high=sell_row[HIGH_IDX])
-        if sell.sell_flag:
-            trade_dur = int((sell_row[DATE_IDX] - trade.open_date).total_seconds() // 60)
-            closerate = self._get_close_rate(sell_row, trade, sell, trade_dur)
 
+        if sell.sell_flag:
             trade.close_date = sell_row[DATE_IDX]
             trade.sell_reason = sell.sell_type
+
+            # Confirm trade exit:
+            time_in_force = self.strategy.order_time_in_force['sell']
+            if not strategy_safe_wrapper(self.strategy.confirm_trade_exit, default_retval=True)(
+                    pair=trade.pair, trade=trade, order_type='limit', amount=trade.amount,
+                    rate=closerate,
+                    time_in_force=time_in_force,
+                    sell_reason=sell.sell_type.value):
+                return None
+
             trade.close(closerate, show_msg=False)
             return trade
 
         return None
 
-    def handle_left_open(self, open_trades: Dict[str, List[Trade]],
-                         data: Dict[str, List[Tuple]]) -> List[Trade]:
+    def _enter_trade(self, pair: str, row: List, max_open_trades: int,
+                     open_trade_count: int) -> Optional[LocalTrade]:
+        try:
+            stake_amount = self.wallets.get_trade_stake_amount(
+                pair, max_open_trades - open_trade_count, None)
+        except DependencyException:
+            return None
+        min_stake_amount = self.exchange.get_min_pair_stake_amount(pair, row[OPEN_IDX], -0.05)
+
+        order_type = self.strategy.order_types['buy']
+        time_in_force = self.strategy.order_time_in_force['sell']
+        # Confirm trade entry:
+        if not strategy_safe_wrapper(self.strategy.confirm_trade_entry, default_retval=True)(
+                pair=pair, order_type=order_type, amount=stake_amount, rate=row[OPEN_IDX],
+                time_in_force=time_in_force):
+            return None
+
+        if stake_amount and (not min_stake_amount or stake_amount > min_stake_amount):
+            # Enter trade
+            trade = LocalTrade(
+                pair=pair,
+                open_rate=row[OPEN_IDX],
+                open_date=row[DATE_IDX],
+                stake_amount=stake_amount,
+                amount=round(stake_amount / row[OPEN_IDX], 8),
+                fee_open=self.fee,
+                fee_close=self.fee,
+                is_open=True,
+                exchange='backtesting',
+            )
+            return trade
+        return None
+
+    def handle_left_open(self, open_trades: Dict[str, List[LocalTrade]],
+                         data: Dict[str, List[Tuple]]) -> List[LocalTrade]:
         """
         Handling of left open trades at the end of backtesting
         """
@@ -277,8 +316,11 @@ class Backtesting:
                     trade.close_date = sell_row[DATE_IDX]
                     trade.sell_reason = SellType.FORCE_SELL
                     trade.close(sell_row[OPEN_IDX], show_msg=False)
-                    trade.is_open = True
-                    trades.append(trade)
+                    LocalTrade.close_bt_trade(trade)
+                    # Deepcopy object to have wallets update correctly
+                    trade1 = deepcopy(trade)
+                    trade1.is_open = True
+                    trades.append(trade1)
         return trades
     
     def backtest(self, processed: Dict, stake_amount: float,
@@ -356,31 +398,17 @@ class Backtesting:
                         and (max_open_trades <= 0 or open_trade_count_start < max_open_trades)
                         and tmp != end_date
                         and row[BUY_IDX] == 1 and row[SELL_IDX] != 1
-                        and not PairLocks.is_pair_locked(pair, row[DATE_IDX])
-                        and available_balance > stake_amount):
-                    # Enter trade
-                    trade = Trade(
-                        pair=pair,
-                        open_rate=row[OPEN_IDX],
-                        open_date=row[DATE_IDX],
-                        stake_amount=stake_amount,
-                        amount=round(stake_amount / row[OPEN_IDX], 8),
-                        fee_open=self.fee,
-                        fee_close=self.fee,
-                        is_open=True,
-                    )
-                    
-                    # TODO: hacky workaround to avoid opening > max_open_trades
-                    # This emulates previous behaviour - not sure if this is correct
-                    # Prevents buying if the trade-slot was freed in this candle
-                    open_trade_count_start += 1
-                    open_trade_count += 1
-                    # logger.debug(f"{pair} - Backtesting emulates creation of new trade: {trade}.")
-                    open_trades[pair].append(trade)
-                    Trade.trades.append(trade)
-                                        
-                    # Update available balance
-                    available_balance -= trade.stake_amount
+                        and not PairLocks.is_pair_locked(pair, row[DATE_IDX])):
+                    trade = self._enter_trade(pair, row, max_open_trades, open_trade_count_start)
+                    if trade:
+                        # TODO: hacky workaround to avoid opening > max_open_trades
+                        # This emulates previous behaviour - not sure if this is correct
+                        # Prevents buying if the trade-slot was freed in this candle
+                        open_trade_count_start += 1
+                        open_trade_count += 1
+                        # logger.debug(f"{pair} - Emulate creation of new trade: {trade}.")
+                        open_trades[pair].append(trade)
+                        LocalTrade.add_bt_trade(trade)
 
                 for trade in open_trades[pair]:
                     # since indexes has been incremented before, we need to go one step back to
@@ -391,6 +419,8 @@ class Backtesting:
                         # logger.debug(f"{pair} - Backtesting sell {trade}")
                         open_trade_count -= 1
                         open_trades[pair].remove(trade)
+
+                        LocalTrade.close_bt_trade(trade)
                         trades.append(trade_entry)
                         # Update available balance
                         available_balance += trade_entry.close_profit_abs + trade_entry.stake_amount
@@ -427,7 +457,8 @@ class Backtesting:
 
         # Trim startup period from analyzed dataframe
         for pair, df in preprocessed.items():
-            preprocessed[pair] = trim_dataframe(df, timerange)
+            preprocessed[pair] = trim_dataframe(df, timerange,
+                                                startup_candles=self.required_startup)
         min_date, max_date = history.get_timerange(preprocessed)
 
         logger.info(f'Backtesting with data from {min_date.strftime(DATETIME_PRINT_FORMAT)} '

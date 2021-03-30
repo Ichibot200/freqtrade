@@ -193,7 +193,8 @@ class Telegram(RPCHandler):
             else:
                 msg['stake_amount_fiat'] = 0
 
-            message = (f"\N{LARGE BLUE CIRCLE} *{msg['exchange']}:* Buying {msg['pair']}\n"
+            message = (f"\N{LARGE BLUE CIRCLE} *{msg['exchange']}:* Buying {msg['pair']}"
+                       f" (#{msg['trade_id']})\n"
                        f"*Amount:* `{msg['amount']:.8f}`\n"
                        f"*Open Rate:* `{msg['limit']:.8f}`\n"
                        f"*Current Rate:* `{msg['current_rate']:.8f}`\n"
@@ -205,7 +206,8 @@ class Telegram(RPCHandler):
 
         elif msg['type'] == RPCMessageType.BUY_CANCEL_NOTIFICATION:
             message = ("\N{WARNING SIGN} *{exchange}:* "
-                       "Cancelling open buy Order for {pair}. Reason: {reason}.".format(**msg))
+                       "Cancelling open buy Order for {pair} (#{trade_id}). "
+                       "Reason: {reason}.".format(**msg))
 
         elif msg['type'] == RPCMessageType.SELL_NOTIFICATION:
             msg['amount'] = round(msg['amount'], 8)
@@ -216,7 +218,7 @@ class Telegram(RPCHandler):
 
             msg['emoji'] = self._get_sell_emoji(msg)
 
-            message = ("{emoji} *{exchange}:* Selling {pair}\n"
+            message = ("{emoji} *{exchange}:* Selling {pair} (#{trade_id})\n"
                        "*Amount:* `{amount:.8f}`\n"
                        "*Open Rate:* `{open_rate:.8f}`\n"
                        "*Current Rate:* `{current_rate:.8f}`\n"
@@ -236,7 +238,7 @@ class Telegram(RPCHandler):
 
         elif msg['type'] == RPCMessageType.SELL_CANCEL_NOTIFICATION:
             message = ("\N{WARNING SIGN} *{exchange}:* Cancelling Open Sell Order "
-                       "for {pair}. Reason: {reason}").format(**msg)
+                       "for {pair} (#{trade_id}). Reason: {reason}").format(**msg)
 
         elif msg['type'] == RPCMessageType.STATUS_NOTIFICATION:
             message = '*Status:* `{status}`'.format(**msg)
@@ -341,8 +343,17 @@ class Telegram(RPCHandler):
             statlist, head = self._rpc._rpc_status_table(
                 self._config['stake_currency'], self._config.get('fiat_display_currency', ''))
 
-            message = tabulate(statlist, headers=head, tablefmt='simple')
-            self._send_msg(f"<pre>{message}</pre>", parse_mode=ParseMode.HTML)
+            max_trades_per_msg = 50
+            """
+            Calculate the number of messages of 50 trades per message
+            0.99 is used to make sure that there are no extra (empty) messages
+            As an example with 50 trades, there will be int(50/50 + 0.99) = 1 message
+            """
+            for i in range(0, max(int(len(statlist) / max_trades_per_msg + 0.99), 1)):
+                message = tabulate(statlist[i * max_trades_per_msg:(i + 1) * max_trades_per_msg],
+                                   headers=head,
+                                   tablefmt='simple')
+                self._send_msg(f"<pre>{message}</pre>", parse_mode=ParseMode.HTML)
         except RPCException as e:
             self._send_msg(str(e))
 
@@ -635,13 +646,13 @@ class Telegram(RPCHandler):
                 nrecent
             )
             trades_tab = tabulate(
-                [[arrow.get(trade['open_date']).humanize(),
-                  trade['pair'],
+                [[arrow.get(trade['close_date']).humanize(),
+                  trade['pair'] + " (#" + str(trade['trade_id']) + ")",
                   f"{(100 * trade['close_profit']):.2f}% ({trade['close_profit_abs']})"]
                  for trade in trades['trades']],
                 headers=[
-                    'Open Date',
-                    'Pair',
+                    'Close Date',
+                    'Pair (ID)',
                     f'Profit ({stake_cur})',
                 ],
                 tablefmt='simple')

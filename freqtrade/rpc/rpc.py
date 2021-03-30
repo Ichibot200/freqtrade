@@ -289,9 +289,10 @@ class RPC:
         """ Returns the X last trades """
         if limit > 0:
             trades = Trade.get_trades([Trade.is_open.is_(False)]).order_by(
-                Trade.id.desc()).limit(limit)
+                Trade.close_date.desc()).limit(limit)
         else:
-            trades = Trade.get_trades([Trade.is_open.is_(False)]).order_by(Trade.id.desc()).all()
+            trades = Trade.get_trades([Trade.is_open.is_(False)]).order_by(
+                Trade.close_date.desc()).all()
 
         output = [trade.to_json() for trade in trades]
 
@@ -402,14 +403,12 @@ class RPC:
         num = float(len(durations) or 1)
         return {
             'profit_closed_coin': profit_closed_coin_sum,
-            'profit_closed_percent': round(profit_closed_ratio_mean * 100, 2),  # DEPRECATED
             'profit_closed_percent_mean': round(profit_closed_ratio_mean * 100, 2),
             'profit_closed_ratio_mean': profit_closed_ratio_mean,
             'profit_closed_percent_sum': round(profit_closed_ratio_sum * 100, 2),
             'profit_closed_ratio_sum': profit_closed_ratio_sum,
             'profit_closed_fiat': profit_closed_fiat,
             'profit_all_coin': profit_all_coin_sum,
-            'profit_all_percent': round(profit_all_ratio_mean * 100, 2),  # DEPRECATED
             'profit_all_percent_mean': round(profit_all_ratio_mean * 100, 2),
             'profit_all_ratio_mean': profit_all_ratio_mean,
             'profit_all_percent_sum': round(profit_all_ratio_sum * 100, 2),
@@ -595,7 +594,7 @@ class RPC:
             pair, self._freqtrade.get_free_open_trades())
 
         # execute buy
-        if self._freqtrade.execute_buy(pair, stakeamount, price):
+        if self._freqtrade.execute_buy(pair, stakeamount, price, forcebuy=True):
             trade = Trade.get_trades([Trade.is_open.is_(True), Trade.pair == pair]).first()
             return trade
         else:

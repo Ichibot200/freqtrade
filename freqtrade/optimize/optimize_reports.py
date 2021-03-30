@@ -8,7 +8,7 @@ from numpy import int64
 from pandas import DataFrame
 from tabulate import tabulate
 
-from freqtrade.constants import DATETIME_PRINT_FORMAT, LAST_BT_RESULT_FN
+from freqtrade.constants import DATETIME_PRINT_FORMAT, LAST_BT_RESULT_FN, UNLIMITED_STAKE_AMOUNT
 from freqtrade.data.btanalysis import calculate_market_change, calculate_max_drawdown, calculate_csum
 from freqtrade.misc import file_dump_json, round_coin_value, decimals_per_coin
 
@@ -193,13 +193,18 @@ def generate_daily_stats(results: DataFrame) -> Dict[str, Any]:
         return {
             'backtest_best_day': 0,
             'backtest_worst_day': 0,
+            'backtest_best_day_abs': 0,
+            'backtest_worst_day_abs': 0,
             'winning_days': 0,
             'draw_days': 0,
             'losing_days': 0,
             'winner_holding_avg': timedelta(),
             'loser_holding_avg': timedelta(),
         }
-    daily_profit = results.resample('1d', on='close_date')['profit_ratio'].sum()
+    daily_profit_rel = results.resample('1d', on='close_date')['profit_ratio'].sum()
+    daily_profit = results.resample('1d', on='close_date')['profit_abs'].sum().round(10)
+    worst_rel = min(daily_profit_rel)
+    best_rel = max(daily_profit_rel)
     worst = min(daily_profit)
     best = max(daily_profit)
     winning_days = sum(daily_profit > 0)
@@ -210,8 +215,10 @@ def generate_daily_stats(results: DataFrame) -> Dict[str, Any]:
     losing_trades = results.loc[results['profit_ratio'] < 0]
 
     return {
-        'backtest_best_day': best,
-        'backtest_worst_day': worst,
+        'backtest_best_day': best_rel,
+        'backtest_worst_day': worst_rel,
+        'backtest_best_day_abs': best,
+        'backtest_worst_day_abs': worst,
         'winning_days': winning_days,
         'draw_days': draw_days,
         'losing_days': losing_days,
@@ -473,8 +480,10 @@ def text_table_add_metrics(strat_results: Dict) -> str:
             ('Worst trade', f"{worst_trade['pair']} "
                             f"{round(worst_trade['profit_ratio'] * 100, 2)}%"),
 
-            ('Best day', f"{round(strat_results['backtest_best_day'] * 100, 2)}%"),
-            ('Worst day', f"{round(strat_results['backtest_worst_day'] * 100, 2)}%"),
+            ('Best day', round_coin_value(strat_results['backtest_best_day_abs'],
+                                          strat_results['stake_currency'])),
+            ('Worst day', round_coin_value(strat_results['backtest_worst_day_abs'],
+                                           strat_results['stake_currency'])),
             ('Days win/draw/lose', f"{strat_results['winning_days']} / "
                 f"{strat_results['draw_days']} / {strat_results['losing_days']}"),
             ('Avg. Duration Winners', f"{strat_results['winner_holding_avg']}"),
@@ -500,7 +509,17 @@ def text_table_add_metrics(strat_results: Dict) -> str:
 
         return tabulate(metrics, headers=["Metric", "Value"], tablefmt="orgtbl")
     else:
-        return ''
+        start_balance = round_coin_value(strat_results['starting_balance'],
+                                         strat_results['stake_currency'])
+        stake_amount = round_coin_value(
+            strat_results['stake_amount'], strat_results['stake_currency']
+            ) if strat_results['stake_amount'] != UNLIMITED_STAKE_AMOUNT else 'unlimited'
+
+        message = ("No trades made. "
+                   f"Your starting balance was {start_balance}, "
+                   f"and your stake was {stake_amount}."
+                   )
+        return message
 
 
 def show_backtest_results(config: Dict, backtest_stats: Dict):
