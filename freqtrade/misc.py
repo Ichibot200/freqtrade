@@ -23,15 +23,6 @@ def decimals_per_coin(coin: str):
     """
     return DECIMALS_PER_COIN.get(coin, DECIMAL_PER_COIN_FALLBACK)
 
-def decimals_per_coin(coin: str):
-    """
-    Helper method getting decimal amount for this coin
-    example usage: f".{decimals_per_coin('USD')}f"
-    :param coin: Which coin are we printing the price / value for
-    """
-    return DECIMALS_PER_COIN.get(coin, DECIMAL_PER_COIN_FALLBACK)
-
-
 def round_coin_value(value: float, coin: str, show_coin_name=True) -> str:
     """
     Get price value for this coin
@@ -45,19 +36,6 @@ def round_coin_value(value: float, coin: str, show_coin_name=True) -> str:
     else:
         return f"{value:.{decimals_per_coin(coin)}f}"
 
-
-def round_coin_value(value: float, coin: str, show_coin_name=True) -> str:
-    """
-    Get price value for this coin
-    :param value: Value to be printed
-    :param coin: Which coin are we printing the price / value for
-    :param show_coin_name: Return string in format: "222.22 USDT" or "222.22"
-    :return: Formatted / rounded value (with or without coin name)
-    """
-    if show_coin_name:
-        return f"{value:.{decimals_per_coin(coin)}f} {coin}"
-    else:
-        return f"{value:.{decimals_per_coin(coin)}f}"
 def shorten_date(_date: str) -> str:
     """
     Trim the date so it fits on small screens

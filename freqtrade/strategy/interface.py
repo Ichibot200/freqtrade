@@ -722,3 +722,6 @@ class IStrategy(ABC):
             return self.populate_sell_trend(dataframe)  # type: ignore
         else:
             return self.populate_sell_trend(dataframe, metadata)
+            
+    def get_trades(self, pair: str, is_open:bool=False):
+        return Trade.get_trades_proxy(pair=pair,is_open=True)

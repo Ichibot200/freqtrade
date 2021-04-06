@@ -45,53 +45,6 @@ USERPATH_NOTEBOOKS = 'notebooks'
 
 TELEGRAM_SETTING_OPTIONS = ['on', 'off', 'silent']
 
-# pragma pylint: disable=too-few-public-methods
-
-"""
-bot constants
-"""
-from typing import List, Tuple
-
-
-DEFAULT_CONFIG = 'config.json'
-DEFAULT_EXCHANGE = 'bittrex'
-PROCESS_THROTTLE_SECS = 5  # sec
-HYPEROPT_EPOCH = 100  # epochs
-RETRY_TIMEOUT = 30  # sec
-DEFAULT_DB_PROD_URL = 'sqlite:///tradesv3.sqlite'
-DEFAULT_DB_DRYRUN_URL = 'sqlite:///tradesv3.dryrun.sqlite'
-UNLIMITED_STAKE_AMOUNT = 'unlimited'
-DEFAULT_AMOUNT_RESERVE_PERCENT = 0.05
-REQUIRED_ORDERTIF = ['buy', 'sell']
-REQUIRED_ORDERTYPES = ['buy', 'sell', 'stoploss', 'stoploss_on_exchange']
-ORDERBOOK_SIDES = ['ask', 'bid']
-ORDERTYPE_POSSIBILITIES = ['limit', 'market']
-ORDERTIF_POSSIBILITIES = ['gtc', 'fok', 'ioc']
-HYPEROPT_LOSS_BUILTIN = ['ShortTradeDurHyperOptLoss', 'OnlyProfitHyperOptLoss',
-                         'SharpeHyperOptLoss', 'SharpeHyperOptLossDaily',
-                         'SortinoHyperOptLoss', 'SortinoHyperOptLossDaily']
-AVAILABLE_PAIRLISTS = ['StaticPairList', 'VolumePairList',
-                       'AgeFilter', 'PerformanceFilter', 'PrecisionFilter',
-                       'PriceFilter', 'RangeStabilityFilter', 'ShuffleFilter',
-                       'SpreadFilter']
-AVAILABLE_PROTECTIONS = ['CooldownPeriod', 'LowProfitPairs', 'MaxDrawdown', 'StoplossGuard']
-AVAILABLE_DATAHANDLERS = ['json', 'jsongz', 'hdf5']
-DRY_RUN_WALLET = 1000
-DATETIME_PRINT_FORMAT = '%Y-%m-%d %H:%M:%S'
-MATH_CLOSE_PREC = 1e-14  # Precision used for float comparisons
-DEFAULT_DATAFRAME_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume']
-# Don't modify sequence of DEFAULT_TRADES_COLUMNS
-# it has wide consequences for stored trades files
-DEFAULT_TRADES_COLUMNS = ['timestamp', 'id', 'type', 'side', 'price', 'amount', 'cost']
-
-LAST_BT_RESULT_FN = '.last_result.json'
-
-USERPATH_HYPEROPTS = 'hyperopts'
-USERPATH_STRATEGIES = 'strategies'
-USERPATH_NOTEBOOKS = 'notebooks'
-
-TELEGRAM_SETTING_OPTIONS = ['on', 'off', 'silent']
-
 
 # Define decimals per coin for outputs
 # Only used for outputs.

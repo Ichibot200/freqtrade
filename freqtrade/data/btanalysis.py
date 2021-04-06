@@ -10,7 +10,7 @@ import pandas as pd
 
 from freqtrade.constants import LAST_BT_RESULT_FN
 from freqtrade.misc import json_load
-from freqtrade.persistence import LocalTrade, Trade, init_db
+from freqtrade.persistence import Trade, init_db
 
 
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ def evaluate_result_multi(results: pd.DataFrame, timeframe: str,
     return df_final[df_final['open_trades'] > max_open_trades]
 
 
-def trade_list_to_dataframe(trades: List[LocalTrade]) -> pd.DataFrame:
+def trade_list_to_dataframe(trades: List[Trade]) -> pd.DataFrame:
     """
     Convert list of Trade objects to pandas Dataframe
     :param trades: List of trade objects
@@ -386,7 +386,6 @@ def calculate_max_drawdown(trades: pd.DataFrame, *, date_col: str = 'close_date'
                                    ['high_value'].idxmax(), 'cumulative']
     low_val = max_drawdown_df.loc[idxmin, 'cumulative']
     return abs(min(max_drawdown_df['drawdown'])), high_date, low_date, high_val, low_val
-
 
 def calculate_csum(trades: pd.DataFrame, starting_balance: float = 0) -> Tuple[float, float]:
     """

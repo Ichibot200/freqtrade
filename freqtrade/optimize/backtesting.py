@@ -401,6 +401,10 @@ class Backtesting:
                         # logger.debug(f"{pair} - Emulate creation of new trade: {trade}.")
                         open_trades[pair].append(trade)
                         LocalTrade.add_bt_trade(trade)
+                        # @siim addition to recalculate signals after buy to have Trade.trades_open 
+                        # list populated in populate_sell_trend
+                        # Performace loss quite significant
+                        # data = self._get_ohlcv_as_lists(processed)
 
 
                 for trade in open_trades[pair]:
