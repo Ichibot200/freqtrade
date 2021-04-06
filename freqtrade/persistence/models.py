@@ -529,7 +529,7 @@ class LocalTrade():
         """
         Calculate the absolute profit in stake currency between Close and Open trade
         :param fee: fee to use on the close rate (optional).
-            If rate is not set self.fee will be used
+            If fee is not set self.fee will be used
         :param rate: close rate to compare with (optional).
             If rate is not set self.close_rate will be used
         :return:  profit in stake currency as float

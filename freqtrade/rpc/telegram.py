@@ -604,7 +604,7 @@ class Telegram(RPCHandler):
 
         trade_id = context.args[0] if context.args and len(context.args) > 0 else None
         if not trade_id:
-            self._send_msg("You must specify a trade-id or 'all'.")
+            self._send_msg("You must specify a trade-id or 'all','profit','loss'.")
             return
         try:
             msg = self._rpc._rpc_forcesell(trade_id)
@@ -872,8 +872,8 @@ class Telegram(RPCHandler):
                    "                `pending sell orders are marked with a double asterisk (**)`\n"
                    "*/trades [limit]:* `Lists last closed trades (limited to 10 by default)`\n"
                    "*/profit:* `Lists cumulative profit from all finished trades`\n"
-                   "*/forcesell <trade_id>|all:* `Instantly sells the given trade or all trades, "
-                   "regardless of profit`\n"
+                   "*/forcesell <trade_id>|all|profit|loss:* `Instantly sells the given trade or all trades, "
+                   "regardless of profit, or only all profit or loss trades`\n"
                    f"{forcebuy_text if self._config.get('forcebuy_enable', False) else ''}"
                    "*/delete <trade_id>:* `Instantly delete the given trade in the database`\n"
                    "*/performance:* `Show performance of each finished trade grouped by pair`\n"

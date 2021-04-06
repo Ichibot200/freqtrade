@@ -544,13 +544,33 @@ class RPC:
             raise RPCException('trader is not running')
 
         with self._freqtrade._sell_lock:
-            if trade_id == 'all':
+            if trade_id in ('all', 'profit', 'loss'):
                 # Execute sell for all open orders
+                _trade_found = False
                 for trade in Trade.get_open_trades():
-                    _exec_forcesell(trade)
+                    # calculate profit
+                    try:
+                        current_rate = self._freqtrade.get_sell_rate(trade.pair, False)
+                    except (ExchangeError, PricingError):
+                        current_rate = NAN
+                    current_profit = trade.calc_profit_ratio(current_rate)
+                    
+                    if trade_id == 'profit' and current_profit >= 0:
+                        _trade_found = True
+                        _exec_forcesell(trade)
+                    elif trade_id == 'loss' and current_profit < 0:
+                        _trade_found = True
+                        _exec_forcesell(trade)
+                    elif trade_id == 'all':
+                        _trade_found = True
+                        _exec_forcesell(trade)
                 Trade.session.flush()
                 self._freqtrade.wallets.update()
-                return {'result': 'Created sell orders for all open trades.'}
+                _str_trade_id = trade_id +' ' if trade_id is not 'all' else ''
+                if _trade_found:
+                    return {'result': f'Created sell orders for all open {_str_trade_id}trades.'}
+                else:
+                    return {'result': f'No open {_str_trade_id}trades.'}
 
             # Query for trade
             trade = Trade.get_trades(

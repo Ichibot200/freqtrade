@@ -150,6 +150,8 @@ official commands. You can ask at any moment for help with `/help`.
 | `/profit` | Display a summary of your profit/loss from close trades and some stats about your performance
 | `/forcesell <trade_id>` | Instantly sells the given trade  (Ignoring `minimum_roi`).
 | `/forcesell all` | Instantly sells all open trades (Ignoring `minimum_roi`).
+| `/forcesell profit` | Instantly sells all open profit trades (Ignoring `minimum_roi`).
+| `/forcesell loss` | Instantly sells all open loss trades (Ignoring `minimum_roi`).
 | `/forcebuy <pair> [rate]` | Instantly buys the given pair. Rate is optional. (`forcebuy_enable` must be set to True)
 | `/performance` | Show performance of each finished trade grouped by pair
 | `/balance` | Show account balance per currency
