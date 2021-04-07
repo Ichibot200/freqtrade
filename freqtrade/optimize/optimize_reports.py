@@ -13,6 +13,7 @@ from freqtrade.data.btanalysis import (calculate_csum, calculate_market_change,
                                        calculate_max_drawdown)
 from freqtrade.misc import decimals_per_coin, file_dump_json, round_coin_value
 
+import statistics 
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,12 @@ def _get_line_floatfmt(stake_currency: str) -> List[str]:
     return ['s', 'd', '.2f', '.2f', f'.{decimals_per_coin(stake_currency)}f',
             '.2f', 'd', 'd', 'd', 'd']
 
+def _get_strategy_line_floatfmt(stake_currency: str) -> List[str]:
+    """
+    Generate floatformat (goes in line with _generate_result_line())
+    """
+    return ['s', 'd', '.2f', '.2f', f'.{decimals_per_coin(stake_currency)}f',
+            '.2f', 'd', 'd', 'd', '.2f', '.2f']
 
 def _get_line_header(first_column: str, stake_currency: str) -> List[str]:
     """
@@ -63,7 +70,7 @@ def _generate_result_line(result: DataFrame, starting_balance: float, first_colu
     profit_sum = result['profit_ratio'].sum()
     # (end-capital - starting capital) / starting capital
     profit_total = result['profit_abs'].sum() / starting_balance
-
+    
     return {
         'key': first_column,
         'trades': len(result),
@@ -85,7 +92,7 @@ def _generate_result_line(result: DataFrame, starting_balance: float, first_colu
         #                     ) if not result.empty else '0:00',
         'wins': len(result[result['profit_abs'] > 0]),
         'draws': len(result[result['profit_abs'] == 0]),
-        'losses': len(result[result['profit_abs'] < 0]),
+        'losses': len(result[result['profit_abs'] < 0])
     }
 
 
@@ -156,11 +163,18 @@ def generate_strategy_metrics(all_results: Dict) -> List[Dict]:
     :param all_results: Dict of <Strategyname: DataFrame> containing results for all strategies
     :return: List of Dicts containing the metrics per Strategy
     """
+
     tabular_data = []
-    for strategy, results in all_results.items():
-        tabular_data.append(_generate_result_line(
-            results['results'], results['config']['dry_run_wallet'], strategy)
-            )
+    for strategy, stats in all_results['strategy'].items():
+        metrics = _generate_result_line(
+                    DataFrame(stats['trades']), stats['config']['dry_run_wallet'], strategy)
+        additional_metrics = {
+            'win_loss_ratio': round(stats['win_loss_ratio'],3) if stats['win_loss_ratio'] is not None else 0.0,
+            'daily_sharpe_ratio': round(stats['daily_sharpe_ratio']*100,2) if stats['daily_sharpe_ratio'] is not None else 0.0
+            }
+        metrics.update(additional_metrics)
+        tabular_data.append(metrics)
+    
     return tabular_data
 
 
@@ -205,6 +219,9 @@ def generate_daily_stats(results: DataFrame) -> Dict[str, Any]:
         }
     daily_profit_rel = results.resample('1d', on='close_date')['profit_ratio'].sum()
     daily_profit = results.resample('1d', on='close_date')['profit_abs'].sum().round(10)
+    daily_profit_mean = statistics.mean(daily_profit_rel)
+    daily_profit_std = statistics.stdev(daily_profit_rel)
+    daily_sharpe_ratio = daily_profit_mean / daily_profit_std
     worst_rel = min(daily_profit_rel)
     best_rel = max(daily_profit_rel)
     worst = min(daily_profit)
@@ -217,6 +234,7 @@ def generate_daily_stats(results: DataFrame) -> Dict[str, Any]:
     losing_trades = results.loc[results['profit_ratio'] < 0]
 
     return {
+        'daily_sharpe_ratio': daily_sharpe_ratio,
         'backtest_best_day': best_rel,
         'backtest_worst_day': worst_rel,
         'backtest_best_day_abs': best,
@@ -282,6 +300,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
         backtest_days = (max_date - min_date).days
         strat_stats = {
             'trades': results.to_dict(orient='records'),
+            'config': config,
             'locks': [lock.to_json() for lock in content['locks']],
             'best_pair': best_pair,
             'worst_pair': worst_pair,
@@ -300,6 +319,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'backtest_end_ts': max_date.int_timestamp * 1000,
             'early_end': '* ' if ended_early else '',
             'backtest_days': backtest_days,
+            'win_loss_ratio': round(len(results[results['profit_abs'] > 0]) / len(results[results['profit_abs'] < 0]),4) if len(results[results['profit_abs'] < 0]) > 0 else 0.0,
 
             'backtest_run_start_ts': content['backtest_start_time'],
             'backtest_run_end_ts': content['backtest_end_time'],
@@ -332,7 +352,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'sell_profit_only': config['ask_strategy']['sell_profit_only'],
             'sell_profit_offset': config['ask_strategy']['sell_profit_offset'],
             'ignore_roi_if_buy_signal': config['ask_strategy']['ignore_roi_if_buy_signal'],
-            **daily_stats,
+            **daily_stats
         }
         result['strategy'][strategy] = strat_stats
 
@@ -375,7 +395,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
                 'csum_max': 0
             })
 
-    strategy_results = generate_strategy_metrics(all_results=all_results)
+    strategy_results = generate_strategy_metrics(all_results=result)
 
     result['strategy_comparison'] = strategy_results
 
@@ -440,12 +460,14 @@ def text_table_strategy(strategy_results, stake_currency: str) -> str:
     :param all_results: Dict of <Strategyname: DataFrame> containing results for all strategies
     :return: pretty printed table with tabulate as string
     """
-    floatfmt = _get_line_floatfmt(stake_currency)
+    floatfmt = _get_strategy_line_floatfmt(stake_currency)
     headers = _get_line_header('Strategy', stake_currency)
+    headers += ['W/L ratio', 'Sharpe %']
 
     output = [[
         t['key'], t['trades'], t['profit_mean_pct'], t['profit_total_abs'],
-        t['profit_total_pct'], t['duration_avg'], t['wins'], t['draws'], t['losses']
+        t['profit_total_pct'], t['duration_avg'], t['wins'], t['draws'], t['losses'], 
+        t['win_loss_ratio'], t['daily_sharpe_ratio']
     ] for t in strategy_results]
     # Ignore type as floatfmt does allow tuples but mypy does not know that
     return tabulate(output, headers=headers,
@@ -495,6 +517,8 @@ def text_table_add_metrics(strat_results: Dict) -> str:
                 f"{strat_results['draw_days']} / {strat_results['losing_days']}"),
             ('Avg. Duration Winners', f"{strat_results['winner_holding_avg']}"),
             ('Avg. Duration Loser', f"{strat_results['loser_holding_avg']}"),
+            ('Win-loss ratio', f"{strat_results['win_loss_ratio']}"),
+            ('Daily sharpe ratio', f"{round(strat_results['daily_sharpe_ratio']*100,3)} %"),
             ('', ''),  # Empty line to improve readability
 
             ('Min balance', round_coin_value(strat_results['csum_min'],
