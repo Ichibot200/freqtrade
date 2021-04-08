@@ -879,7 +879,7 @@ class Telegram(RPCHandler):
                    "*/performance:* `Show performance of each finished trade grouped by pair`\n"
                    "*/daily <n>:* `Shows profit or loss per day, over the last n days`\n"
                    "*/stats:* `Shows Wins / losses by Sell reason as well as "
-                   "Avg. holding durationsfor buys and sells.`\n"
+                   "Avg. holding durations for wins and losses.`\n"
                    "*/count:* `Show number of active trades compared to allowed number of trades`\n"
                    "*/locks:* `Show currently locked pairs`\n"
                    "*/unlock <pair|id>:* `Unlock this Pair (or this lock id if it's numeric)`\n"
