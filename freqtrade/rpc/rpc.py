@@ -31,13 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 class RPCMessageType(Enum):
-    STATUS_NOTIFICATION = 'status'
-    WARNING_NOTIFICATION = 'warning'
-    STARTUP_NOTIFICATION = 'startup'
-    BUY_NOTIFICATION = 'buy'
-    BUY_CANCEL_NOTIFICATION = 'buy_cancel'
-    SELL_NOTIFICATION = 'sell'
-    SELL_CANCEL_NOTIFICATION = 'sell_cancel'
+    STATUS = 'status'
+    WARNING = 'warning'
+    STARTUP = 'startup'
+    BUY = 'buy'
+    BUY_FILL = 'buy_fill'
+    BUY_CANCEL = 'buy_cancel'
+    SELL = 'sell'
+    SELL_FILL = 'sell_fill'
+    SELL_CANCEL = 'sell_cancel'
 
     def __repr__(self):
         return self.value
@@ -167,12 +169,24 @@ class RPC:
                 if trade.open_order_id:
                     order = self._freqtrade.exchange.fetch_order(trade.open_order_id, trade.pair)
                 # calculate profit and send message to user
-                try:
-                    current_rate = self._freqtrade.get_sell_rate(trade.pair, False)
-                except (ExchangeError, PricingError):
-                    current_rate = NAN
+                if trade.is_open:
+                    try:
+                        current_rate = self._freqtrade.get_sell_rate(trade.pair, False)
+                    except (ExchangeError, PricingError):
+                        current_rate = NAN
+                else:
+                    current_rate = trade.close_rate
                 current_profit = trade.calc_profit_ratio(current_rate)
                 current_profit_abs = trade.calc_profit(current_rate)
+
+                # Calculate fiat profit
+                if self._fiat_converter:
+                    current_profit_fiat = self._fiat_converter.convert_amount(
+                        current_profit_abs,
+                        self._freqtrade.config['stake_currency'],
+                        self._freqtrade.config['fiat_display_currency']
+                    )
+
                 # Calculate guaranteed profit (in case of trailing stop)
                 stoploss_entry_dist = trade.calc_profit(trade.stop_loss)
                 stoploss_entry_dist_ratio = trade.calc_profit_ratio(trade.stop_loss)
@@ -191,6 +205,7 @@ class RPC:
                     profit_ratio=current_profit,
                     profit_pct=round(current_profit * 100, 2),
                     profit_abs=current_profit_abs,
+                    profit_fiat=current_profit_fiat,
 
                     stoploss_current_dist=stoploss_current_dist,
                     stoploss_current_dist_ratio=round(stoploss_current_dist_ratio, 8),
@@ -432,7 +447,7 @@ class RPC:
         output = []
         total = 0.0
         try:
-            tickers = self._freqtrade.exchange.get_tickers()
+            tickers = self._freqtrade.exchange.get_tickers(cached=True)
         except (ExchangeError):
             raise RPCException('Error getting current tickers.')
 
@@ -564,7 +579,7 @@ class RPC:
                     elif trade_id == 'all':
                         _trade_found = True
                         _exec_forcesell(trade)
-                Trade.session.flush()
+                Trade.query.session.flush()
                 self._freqtrade.wallets.update()
                 _str_trade_id = trade_id +' ' if trade_id is not 'all' else ''
                 if _trade_found:
@@ -581,7 +596,7 @@ class RPC:
                 raise RPCException('invalid argument')
 
             _exec_forcesell(trade)
-            Trade.session.flush()
+            Trade.query.session.flush()
             self._freqtrade.wallets.update()
             return {'result': f'Created sell order for trade {trade_id}.'}
 
@@ -706,7 +721,7 @@ class RPC:
             lock.lock_end_time = datetime.now(timezone.utc)
 
         # session is always the same
-        PairLock.session.flush()
+        PairLock.query.session.flush()
 
         return self._rpc_locks()
 
