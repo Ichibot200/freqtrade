@@ -378,7 +378,7 @@ class FreqtradeBot(LoggingMixin):
             if lock:
                 self.log_once(f"Global pairlock active until "
                               f"{lock.lock_end_time.strftime(constants.DATETIME_PRINT_FORMAT)}. "
-                              "Not creating new trades.", logger.info)
+                              f"Not creating new trades, reason: {lock.reason}.", logger.info)
             else:
                 self.log_once("Global pairlock active. Not creating new trades.", logger.info)
             return trades_created
@@ -456,7 +456,8 @@ class FreqtradeBot(LoggingMixin):
             lock = PairLocks.get_pair_longest_lock(pair, nowtime)
             if lock:
                 self.log_once(f"Pair {pair} is still locked until "
-                              f"{lock.lock_end_time.strftime(constants.DATETIME_PRINT_FORMAT)}.",
+                              f"{lock.lock_end_time.strftime(constants.DATETIME_PRINT_FORMAT)} "
+                              f"due to {lock.reason}.",
                               logger.info)
             else:
                 self.log_once(f"Pair {pair} is still locked.", logger.info)
@@ -472,8 +473,7 @@ class FreqtradeBot(LoggingMixin):
         (buy, sell) = self.strategy.get_signal(pair, self.strategy.timeframe, analyzed_df)
 
         if buy and not sell:
-            stake_amount = self.wallets.get_trade_stake_amount(pair, self.get_free_open_trades(),
-                                                               self.edge)
+            stake_amount = self.wallets.get_trade_stake_amount(pair, self.edge)
             if not stake_amount:
                 logger.debug(f"Stake amount is 0, ignoring possible trade for {pair}.")
                 return False

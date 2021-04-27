@@ -273,11 +273,9 @@ class Backtesting:
 
         return None
 
-    def _enter_trade(self, pair: str, row: List, max_open_trades: int,
-                     open_trade_count: int) -> Optional[LocalTrade]:
+    def _enter_trade(self, pair: str, row: List) -> Optional[LocalTrade]:
         try:
-            stake_amount = self.wallets.get_trade_stake_amount(
-                pair, max_open_trades - open_trade_count, None)
+            stake_amount = self.wallets.get_trade_stake_amount(pair, None)
         except DependencyException:
             return None
         min_stake_amount = self.exchange.get_min_pair_stake_amount(pair, row[OPEN_IDX], -0.05)
@@ -354,7 +352,7 @@ class Backtesting:
         data: Dict = self._get_ohlcv_as_lists(processed)
 
         # Indexes per pair, so some pairs are allowed to have a missing start.
-        indexes: Dict = {}
+        indexes: Dict = defaultdict(int)
         tmp = start_date + timedelta(minutes=self.timeframe_min)
 
         open_trades: Dict[str, List[LocalTrade]] = defaultdict(list)
@@ -368,9 +366,6 @@ class Backtesting:
             open_trade_count_start = open_trade_count
 
             for i, pair in enumerate(data):
-                if pair not in indexes:
-                    indexes[pair] = 0
-
                 try:
                     row = data[pair][indexes[pair]]
                 except IndexError:
@@ -391,7 +386,7 @@ class Backtesting:
                         and tmp != end_date
                         and row[BUY_IDX] == 1 and row[SELL_IDX] != 1
                         and not PairLocks.is_pair_locked(pair, row[DATE_IDX])):
-                    trade = self._enter_trade(pair, row, max_open_trades, open_trade_count_start)
+                    trade = self._enter_trade(pair, row)
                     if trade:
                         # TODO: hacky workaround to avoid opening > max_open_trades
                         # This emulates previous behaviour - not sure if this is correct
@@ -486,6 +481,7 @@ class Backtesting:
         data: Dict[str, Any] = {}
 
         data, timerange = self.load_bt_data()
+        logger.info("Dataload complete. Calculating indicators")
 
         for strat in self.strategylist:
             min_date, max_date = self.backtest_one_strategy(strat, data, timerange)

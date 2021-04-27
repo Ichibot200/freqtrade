@@ -300,11 +300,12 @@ class RPC:
             'data': data
         }
 
-    def _rpc_trade_history(self, limit: int) -> Dict:
+    def _rpc_trade_history(self, limit: int, offset: int = 0, order_by_id: bool = False) -> Dict:
         """ Returns the X last trades """
-        if limit > 0:
+        order_by = Trade.id if order_by_id else Trade.close_date.desc()
+        if limit:
             trades = Trade.get_trades([Trade.is_open.is_(False)]).order_by(
-                Trade.close_date.desc()).limit(limit)
+                order_by).limit(limit).offset(offset)
         else:
             trades = Trade.get_trades([Trade.is_open.is_(False)]).order_by(
                 Trade.close_date.desc()).all()
@@ -313,7 +314,8 @@ class RPC:
 
         return {
             "trades": output,
-            "trades_count": len(output)
+            "trades_count": len(output),
+            "total_trades": Trade.get_trades([Trade.is_open.is_(False)]).count(),
         }
 
     def _rpc_stats(self) -> Dict[str, Any]:
@@ -625,8 +627,7 @@ class RPC:
             raise RPCException(f'position for {pair} already open - id: {trade.id}')
 
         # gen stake amount
-        stakeamount = self._freqtrade.wallets.get_trade_stake_amount(
-            pair, self._freqtrade.get_free_open_trades())
+        stakeamount = self._freqtrade.wallets.get_trade_stake_amount(pair)
 
         # execute buy
         if self._freqtrade.execute_buy(pair, stakeamount, price, forcebuy=True):

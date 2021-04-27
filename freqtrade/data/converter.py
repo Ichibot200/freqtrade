@@ -111,7 +111,13 @@ def ohlcv_fill_up_missing_data(dataframe: DataFrame, timeframe: str, pair: str) 
     len_before = len(dataframe)
     len_after = len(df)
     if len_before != len_after:
-        logger.info(f"Missing data fillup for {pair}: before: {len_before} - after: {len_after}")
+        message = (f"Missing data fillup for {pair}: before: {len_before} - after: {len_after}"
+                   f" - {round(pct_missing * 100, 2)}%")
+        if pct_missing > 0.01:
+            logger.info(message)
+        else:
+            # Don't be verbose if only a small amount is missing
+            logger.debug(message)
     return df
 
 
