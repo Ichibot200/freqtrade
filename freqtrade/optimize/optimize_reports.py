@@ -125,10 +125,10 @@ def generate_pair_metrics(data: Dict[str, Dict], stake_currency: str, starting_b
     return tabular_data
 
 
-def generate_sell_reason_stats(max_open_trades: int, results: DataFrame) -> List[Dict]:
+def generate_sell_reason_stats(starting_balance: float, results: DataFrame) -> List[Dict]:
     """
     Generate small table outlining Backtest results
-    :param max_open_trades: Max_open_trades parameter
+    :param starting_balance: starting_balance parameter
     :param results: Dataframe containing the backtest result for one strategy
     :return: List of Dicts containing the metrics per Sell reason
     """
@@ -139,7 +139,8 @@ def generate_sell_reason_stats(max_open_trades: int, results: DataFrame) -> List
 
         profit_mean = result['profit_ratio'].mean()
         profit_sum = result['profit_ratio'].sum()
-        profit_total = profit_sum / max_open_trades
+        profit_total_abs = result['profit_abs'].sum()
+        profit_total = profit_total_abs / starting_balance
 
         tabular_data.append(
             {
@@ -152,7 +153,7 @@ def generate_sell_reason_stats(max_open_trades: int, results: DataFrame) -> List
                 'profit_mean_pct': round(profit_mean * 100, 2),
                 'profit_sum': profit_sum,
                 'profit_sum_pct': round(profit_sum * 100, 2),
-                'profit_total_abs': result['profit_abs'].sum(),
+                'profit_total_abs': profit_total_abs,
                 'profit_total': profit_total,
                 'profit_total_pct': round(profit_total * 100, 2),
             }
@@ -280,7 +281,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
         pair_results = generate_pair_metrics(btdata, stake_currency=stake_currency,
                                              starting_balance=starting_balance,
                                              results=results, skip_nan=False)
-        sell_reason_stats = generate_sell_reason_stats(max_open_trades=max_open_trades,
+        sell_reason_stats = generate_sell_reason_stats(starting_balance=starting_balance,
                                                        results=results)
         left_open_results = generate_pair_metrics(btdata, stake_currency=stake_currency,
                                                   starting_balance=starting_balance,
