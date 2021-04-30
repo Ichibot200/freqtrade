@@ -52,7 +52,7 @@ def _get_strategy_line_floatfmt(stake_currency: str) -> List[str]:
     Generate floatformat (goes in line with _generate_result_line())
     """
     return ['s', 'd', '.2f', '.2f', f'.{decimals_per_coin(stake_currency)}f',
-            '.2f', 'd', 'd', 'd', '.2f', '.2f']
+            '.2f', 'd', 'd', 'd', '.2f', '.2f', '.2f']
 
 def _get_line_header(first_column: str, stake_currency: str) -> List[str]:
     """
@@ -174,7 +174,8 @@ def generate_strategy_metrics(all_results: Dict) -> List[Dict]:
                     DataFrame(stats['trades']), stats['config']['dry_run_wallet'], strategy)
         additional_metrics = {
             'win_loss_ratio': round(stats['win_loss_ratio'],3) if stats['win_loss_ratio'] is not None else 0.0,
-            'daily_sharpe_ratio': round(stats['daily_sharpe_ratio']*100,2) if stats['daily_sharpe_ratio'] is not None else 0.0
+            'daily_sharpe_ratio': round(stats['daily_sharpe_ratio']*100,2) if stats['daily_sharpe_ratio'] is not None else 0.0,
+            'max_drawdown_pct': round(stats['max_drawdown_pct']*100, 2)
             }
         metrics.update(additional_metrics)
         tabular_data.append(metrics)
@@ -358,7 +359,7 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
             'ignore_roi_if_buy_signal': config['ask_strategy']['ignore_roi_if_buy_signal'],
             **daily_stats
         }
-        result['strategy'][strategy] = strat_stats
+        
 
         try:
             max_drawdown, _, _, _, _ = calculate_max_drawdown(
@@ -367,15 +368,15 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
                 results, value_col='profit_abs')
             strat_stats.update({
                 'max_drawdown': max_drawdown,
-                'max_drawdown_pct': drawdown_abs / high_val,
+                'max_drawdown_pct': drawdown_abs / (high_val + starting_balance),
                 'max_drawdown_abs': drawdown_abs,
                 'drawdown_start': drawdown_start,
                 'drawdown_start_ts': drawdown_start.timestamp() * 1000,
                 'drawdown_end': drawdown_end,
                 'drawdown_end_ts': drawdown_end.timestamp() * 1000,
 
-                'max_drawdown_low': low_val,
-                'max_drawdown_high': high_val,
+                'max_drawdown_low': low_val + starting_balance,
+                'max_drawdown_high': high_val + starting_balance,
             })
 
             csum_min, csum_max = calculate_csum(results, starting_balance)
@@ -398,6 +399,8 @@ def generate_backtest_stats(btdata: Dict[str, DataFrame],
                 'csum_min': 0,
                 'csum_max': 0
             })
+            
+        result['strategy'][strategy] = strat_stats
 
     strategy_results = generate_strategy_metrics(all_results=result)
 
@@ -466,12 +469,12 @@ def text_table_strategy(strategy_results, stake_currency: str) -> str:
     """
     floatfmt = _get_strategy_line_floatfmt(stake_currency)
     headers = _get_line_header('Strategy', stake_currency)
-    headers += ['W/L ratio', 'Sharpe %']
+    headers += ['W/L ratio', 'Sharpe %', 'DD %']
 
     output = [[
         t['key'], t['trades'], t['profit_mean_pct'], t['profit_total_abs'],
         t['profit_total_pct'], t['duration_avg'], t['wins'], t['draws'], t['losses'], 
-        t['win_loss_ratio'], t['daily_sharpe_ratio']
+        t['win_loss_ratio'], t['daily_sharpe_ratio'], t['max_drawdown_pct']
     ] for t in strategy_results]
     # Ignore type as floatfmt does allow tuples but mypy does not know that
     return tabulate(output, headers=headers,
