@@ -636,7 +636,7 @@ def test_hyperopt_parameters():
     assert len(list(intpar.range)) == 1
     # Range contains ONLY the default / value.
     assert list(intpar.range) == [intpar.value]
-    intpar.hyperopt = True
+    intpar.in_space = True
 
     assert len(list(intpar.range)) == 6
     assert list(intpar.range) == [0, 1, 2, 3, 4, 5]
@@ -671,4 +671,4 @@ def test_auto_hyperopt_interface(default_conf):
     strategy.sell_rsi = IntParameter([0, 10], default=5, space='buy')
 
     with pytest.raises(OperationalException, match=r"Inconclusive parameter.*"):
-        [x for x in strategy.enumerate_parameters('sell')]
+        [x for x in strategy._detect_parameters('sell')]

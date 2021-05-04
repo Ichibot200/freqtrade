@@ -167,6 +167,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         :param metadata: Additional information, like the currently traded pair
         :return: a Dataframe with all mandatory indicators for the strategies
         """
+        return dataframe
 
     @abstractmethod
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -176,6 +177,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with buy column
         """
+        return dataframe
 
     @abstractmethod
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -185,6 +187,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with sell column
         """
+        return dataframe
 
     def check_buy_timeout(self, pair: str, trade: Trade, order: dict, **kwargs) -> bool:
         """
