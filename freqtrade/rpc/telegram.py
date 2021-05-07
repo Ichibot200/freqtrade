@@ -310,7 +310,7 @@ class Telegram(RPCHandler):
 
             messages = []
             for r in results:
-                r['duration'] = arrow.now() - arrow.get(r['open_date'])
+                r['duration'] = arrow.now().replace(microsecond=0) - arrow.get(r['open_date']).replace(microsecond=0)
                 r['duration_min'] = r['duration'].total_seconds() / 60
                 lines = [
                     "*Current Pair:* {pair}",
